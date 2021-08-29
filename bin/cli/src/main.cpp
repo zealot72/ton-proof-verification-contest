@@ -60,8 +60,6 @@ using namespace nil::crypto3::zk;
 typedef algebra::curves::bls12<381> curve_type;
 typedef typename curve_type::scalar_field_type scalar_field_type;
 typedef scalar_field_type::value_type value_type;
-
-using Endianness = option::big_endian;
 typedef zk::snark::r1cs_gg_ppzksnark<curve_type> scheme_type;
 
 // number of assets in S&P100 index

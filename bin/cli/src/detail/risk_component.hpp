@@ -15,6 +15,7 @@
 
 using namespace std;
 using namespace nil::crypto3::zk::components;
+using namespace nil::crypto3::zk::snark;
 
 namespace contest {
 
