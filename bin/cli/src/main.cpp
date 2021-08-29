@@ -17,6 +17,7 @@
 #include <iostream>
 
 #include <boost/filesystem.hpp>
+#include <boost/lexical_cast.hpp>
 #include <boost/program_options.hpp>
 
 #include "detail/r1cs_examples.hpp"
@@ -63,6 +64,53 @@ typedef scalar_field_type::value_type value_type;
 using Endianness = option::big_endian;
 typedef zk::snark::r1cs_gg_ppzksnark<curve_type> scheme_type;
 
+// number of assets in S&P100 index
+const size_t ASSETS_LENGTH = 101;
+
+struct assets {
+    vector<string> symbols;
+    vector<ushort> risks;
+    vector<ushort> weights;
+};
+
+assets load_assets(std::string fname) {
+    // 100%
+    const size_t DENOMINATOR = 10000;
+    const size_t SYMBOLS_COLUMN = 0;
+    const size_t RISK_COLUMN = 1;
+    const size_t WEIGHT_COLUMN = 2;
+    assets data;
+    uint weights_sum = 0;
+
+    cout << "Loading assets from csv file " << fname << endl;
+    vector<vector<string>> table = readCSV(fname);
+    for (size_t row = 0; row < table.size(); ++row) {
+        data.symbols.push_back(table[row][SYMBOLS_COLUMN]);
+        const ushort risk = boost::lexical_cast<ushort>(table[row][RISK_COLUMN]);
+        const ushort weight = boost::lexical_cast<ushort>(table[row][WEIGHT_COLUMN]);
+
+        assert(risk < DENOMINATOR);
+
+        data.risks.push_back(risk);
+        data.weights.push_back(weight);
+        weights_sum += weight;
+
+        // log assets table
+        // cout << "[" << row + 1 << "]: ";
+        // for (size_t column = 0; column < table[row].size(); ++column) {
+        //     cout << table[row][column] << "\t";
+        // }
+        // cout << endl;
+    }
+
+    assert(data.risks.size() == ASSETS_LENGTH);
+    assert(data.risks.size() == data.weights.size());
+    // sum of all weights should be equal to denominator (100%)
+    assert(weights_sum == DENOMINATOR);
+
+    return data;
+}
+
 
 vector<uint8_t> load_blob(boost::filesystem::path path) {
     boost::filesystem::ifstream stream(path, ios::in | ios::binary);
@@ -87,9 +135,9 @@ bool generate_keys(
     boost::filesystem::path vk_path
 ) {
     blueprint<scalar_field_type> bp;
-    contest::risk_reporting_component<scalar_field_type> contest_component(bp, 5);
+    contest::risk_reporting_component<scalar_field_type> report(bp, ASSETS_LENGTH);
     cout << "Generating r1cs constraints..." << endl;
-    contest_component.generate_r1cs_constraints();
+    report.generate_r1cs_constraints();
 
     const r1cs_constraint_system<scalar_field_type> constraint_system = bp.get_constraint_system();
 
@@ -115,8 +163,8 @@ bool generate_proof(
     boost::filesystem::path pk_path,
     vector<ushort> weights,
     vector<ushort> risks,
-    ushort min_risk,
-    ushort max_risk
+    uint min_risk,
+    uint max_risk
 ) {
     cout << "Deserializing proving key from file " << pk_path << endl;
     vector<uint8_t> proving_key_byteblob = load_blob(pk_path);
@@ -127,12 +175,22 @@ bool generate_proof(
         provingProcessingStatus);
 
     blueprint<scalar_field_type> bp;
-    contest::risk_reporting_component<scalar_field_type> contest_component(bp, 5);
+    contest::risk_reporting_component<scalar_field_type> report(bp, ASSETS_LENGTH);
     cout << "Generating r1cs constraints..." << endl;
-    contest_component.generate_r1cs_constraints();
+    report.generate_r1cs_constraints();
     cout << "Generating r1cs witness..." << endl;
-    contest_component.generate_r1cs_witness(weights, risks, min_risk, max_risk);
+    report.generate_r1cs_witness(weights, risks, min_risk, max_risk);
 
+    cout << "aggRisk = " << bp.val(report.aggRisk).data << endl;
+    cout << "minRisk = " << bp.val(report.minRisk).data << endl;
+    cout << "maxRisk = " << bp.val(report.maxRisk).data << endl;
+    cout << "out = " << bp.val(report.out).data << endl;
+    cout << "minRiskLess = " << bp.val(report.minRiskLess).data << endl;
+    cout << "minRiskLessOrEq = " << bp.val(report.minRiskLessOrEq).data << endl;
+    cout << "maxRiskLess = " << bp.val(report.maxRiskLess).data << endl;
+    cout << "maxRiskLessOrEq = " << bp.val(report.maxRiskLessOrEq).data << endl;
+
+    // log inputs
     // r1cs_primary_input<scalar_field_type> input = bp.primary_input();
     // for (size_t i = 0; i < input.size(); ++i) {
     //     cout << "primary_input[" << i << "] = " << input[i].data << endl;
@@ -142,15 +200,14 @@ bool generate_proof(
     //     cout << "auxiliary_input[" << i << "] = " << input2[i].data << endl;
     // }
 
-    bool is_satisfied = bp.is_satisfied();
     cout << "Blueprint primary_input size: " << bp.primary_input().size() << endl;
     cout << "Blueprint auxiliary_input size: " << bp.auxiliary_input().size() << endl;
     cout << "Blueprint num_constraints: " << bp.num_constraints() << endl;
     cout << "Blueprint num_inputs: " << bp.num_inputs() << endl;
     cout << "Blueprint num_variables: " << bp.num_variables() << endl;
-    cout << "Blueprint satisfied: " << is_satisfied << endl;
+    cout << "Blueprint satisfied: " << bp.is_satisfied() << endl;
 
-    if (!is_satisfied) {
+    if (!bp.is_satisfied()) {
         return false;
     }
 
@@ -170,8 +227,8 @@ bool verify_proof(
     boost::filesystem::path proof_path,
     boost::filesystem::path vk_path,
     vector<ushort> risks,
-    ushort min_risk,
-    ushort max_risk
+    uint min_risk,
+    uint max_risk
 ) {
     cout << "Deserializing proof from file " << proof_path << endl;
     vector<uint8_t> proof_byteblob = load_blob(proof_path);
@@ -191,6 +248,12 @@ bool verify_proof(
 
     r1cs_primary_input<scalar_field_type> input = contest::get_public_input<scalar_field_type>(
         risks, min_risk, max_risk);
+
+    // log public input
+    // for (size_t i = 0; i < input.size(); ++i) {
+    //     cout << "public input [" << i << "] = " << input[i].data << endl;
+    // }
+
     using basic_proof_system = r1cs_gg_ppzksnark<curve_type>;
     cout << "Verifying proof..." << endl;
     const bool verified = verify<basic_proof_system>(vk, input, proof);
@@ -200,9 +263,8 @@ bool verify_proof(
 }
 
 int main(int argc, char *argv[]) {
-    ushort min_risk, max_risk;
-    boost::filesystem::path weight_path, risks_path;
-
+    uint min_risk, max_risk;
+    boost::filesystem::path assets_path;
     boost::filesystem::path pout, pkout, vkout, piout, viout;
     boost::program_options::options_description options(
         "R1CS Generic Group PreProcessing Zero-Knowledge Succinct Non-interactive ARgument of Knowledge "
@@ -211,18 +273,18 @@ int main(int argc, char *argv[]) {
     options.add_options()("help,h", "Display help message")
     ("version,v", "Display version")
     ("generate", "Generate private and verification keys")
-    ("verify", "verify proofs and/or keys")
-    ("proof", "verify proofs and/or keys")
+    ("proof", "Generate proofs")
+    ("verify", "Verify proofs")
     ("proof-output,po", boost::program_options::value<boost::filesystem::path>(&pout)->default_value("proof"))
     ("primary-input-output,pio", boost::program_options::value<boost::filesystem::path>(&piout)->default_value
 ("pinput"))
     ("proving-key-output,pko", boost::program_options::value<boost::filesystem::path>(&pkout)->default_value("pkey"))
     ("verifying-key-output,vko", boost::program_options::value<boost::filesystem::path>(&vkout)->default_value("vkey"))
     ("verifier-input-output,vio", boost::program_options::value<boost::filesystem::path>(&viout)->default_value("vio"))
-    ("min-risk,x", boost::program_options::value<ushort>(&min_risk)->default_value(0))
-    ("max-risk,y", boost::program_options::value<ushort>(&max_risk)->default_value(100))
-    ("weights,w", boost::program_options::value<boost::filesystem::path>(&weight_path)->default_value("data/weights.csv"))
-    ("risks,r", boost::program_options::value<boost::filesystem::path>(&risks_path)->default_value("data/risks.csv"));
+    ("min-risk,x", boost::program_options::value<uint>(&min_risk)->default_value(0))
+    ("max-risk,y", boost::program_options::value<uint>(&max_risk)->default_value(2000000))
+    ("assets,a", boost::program_options::value<boost::filesystem::path>(&assets_path)->default_value("assets.csv"))
+    ;
     // clang-format on
 
     boost::program_options::variables_map vm;
@@ -235,16 +297,11 @@ int main(int argc, char *argv[]) {
     } else if (vm.count("generate")) {
         generate_keys(pkout, vkout);
     } else if (vm.count("proof") || vm.count("verify")) {
-        // TODO read data from csv files
-        // vector<vector<string>> table = readCSV("data.csv");
-        // map<string, int> weights_map;
-        // map<string, int> risks_map;
-        vector<ushort> weights = {10, 20, 30, 25, 15};
-        vector<ushort> risks = {0, 0, 10, 0, 10};
+        assets data = load_assets(assets_path.string());
         if (vm.count("proof")) {
-            generate_proof(pout, pkout, weights, risks, min_risk, max_risk);
+            generate_proof(pout, pkout, data.weights, data.risks, min_risk, max_risk);
         } else if (vm.count("verify")) {
-            verify_proof(pout, vkout, risks, min_risk, max_risk);
+            verify_proof(pout, vkout, data.risks, min_risk, max_risk);
         }
     }
 

@@ -60,7 +60,7 @@ namespace contest {
                     weights,
                     aggRisk)
             );
-            const size_t comparison_n = 20;
+            const size_t comparison_n = 30;
             minRiskCmp.reset(
                 new comparison<FieldType>(
                     bp,
@@ -84,6 +84,7 @@ namespace contest {
             minRiskCmp->generate_r1cs_constraints();
             maxRiskCmp->generate_r1cs_constraints();
 
+            // aggRisk should be in range (minRisk, maxRisk):
             // (minRisk <= aggRisk && aggRisk <= maxRisk) == true
             this->bp.add_r1cs_constraint(r1cs_constraint<FieldType>(minRiskLessOrEq + maxRiskLessOrEq, 1, out));
         }
@@ -91,8 +92,8 @@ namespace contest {
         void generate_r1cs_witness(
             vector<ushort> _weights,
             vector<ushort> _risks,
-            ushort _minRisk,
-            ushort _maxRisk
+            uint _minRisk,
+            uint _maxRisk
         ) {
             assert(_weights.size() == n);
             assert(_weights.size() == _risks.size());
@@ -109,23 +110,14 @@ namespace contest {
             compute_result->generate_r1cs_witness();
             minRiskCmp->generate_r1cs_witness();
             maxRiskCmp->generate_r1cs_witness();
-
-            cout << "aggRisk = " << this->bp.val(aggRisk).data << endl;
-            cout << "minRisk = " << this->bp.val(minRisk).data << endl;
-            cout << "maxRisk = " << this->bp.val(maxRisk).data << endl;
-            cout << "out = " << this->bp.val(out).data << endl;
-            cout << "minRiskLess = " << this->bp.val(minRiskLess).data << endl;
-            cout << "minRiskLessOrEq = " << this->bp.val(minRiskLessOrEq).data << endl;
-            cout << "maxRiskLess = " << this->bp.val(maxRiskLess).data << endl;
-            cout << "maxRiskLessOrEq = " << this->bp.val(maxRiskLessOrEq).data << endl;
         }
     };
 
     template<typename FieldType>
     r1cs_primary_input<FieldType> get_public_input(
         vector<ushort> _risks,
-        ushort _minRisk,
-        ushort _maxRisk
+        uint _minRisk,
+        uint _maxRisk
     ) {
         r1cs_primary_input<FieldType> input;
         for (size_t i = 0; i < _risks.size(); ++i) {
@@ -133,7 +125,7 @@ namespace contest {
         }
         input.push_back(_minRisk);
         input.push_back(_maxRisk);
-        // out = 2
+        // out variable
         input.push_back(2);
         return input;
     }
