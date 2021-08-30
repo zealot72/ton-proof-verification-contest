@@ -1,23 +1,7 @@
 #define BOOST_TEST_MODULE circuit_test
 #include <boost/test/included/unit_test.hpp>
 
-#include <nil/crypto3/algebra/curves/bls12.hpp>
-#include <nil/crypto3/algebra/fields/bls12/base_field.hpp>
-#include <nil/crypto3/algebra/fields/bls12/scalar_field.hpp>
-#include <nil/crypto3/algebra/fields/arithmetic_params/bls12.hpp>
-#include <nil/crypto3/algebra/curves/params/multiexp/bls12.hpp>
-#include <nil/crypto3/algebra/curves/params/wnaf/bls12.hpp>
-#include <nil/crypto3/algebra/pairing/bls12.hpp>
-#include <nil/crypto3/algebra/pairing/mnt4.hpp>
-#include <nil/crypto3/algebra/pairing/mnt6.hpp>
-
-#include <nil/crypto3/zk/snark/schemes/ppzksnark/r1cs_gg_ppzksnark.hpp>
-
-typedef algebra::curves::bls12<381> curve_type;
-typedef typename curve_type::scalar_field_type scalar_field_type;
-typedef scalar_field_type::value_type value_type;
-typedef zk::snark::r1cs_gg_ppzksnark<curve_type> scheme_type;
-
+#include "../bin/cli/src/types.h"
 #include "../bin/cli/src/detail/risk_component.hpp"
 
 using namespace std;

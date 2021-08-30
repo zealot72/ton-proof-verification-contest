@@ -1,13 +1,7 @@
-#include <nil/crypto3/algebra/curves/bls12.hpp>
-#include <nil/crypto3/algebra/curves/mnt4.hpp>
-#include <nil/crypto3/algebra/curves/mnt6.hpp>
-#include <nil/crypto3/multiprecision/number.hpp>
-
 #include <nil/crypto3/zk/components/blueprint.hpp>
 #include <nil/crypto3/zk/components/blueprint_variable.hpp>
 #include <nil/crypto3/zk/components/comparison.hpp>
 #include <nil/crypto3/zk/components/component.hpp>
-#include <nil/crypto3/zk/components/hashes/sha256/sha256_component.hpp>
 #include <nil/crypto3/zk/components/packing.hpp>
 #include <nil/crypto3/zk/components/inner_product.hpp>
 
@@ -52,7 +46,7 @@ namespace contest {
             maxRiskLess.allocate(bp);
             maxRiskLessOrEq.allocate(bp);
 
-            bp.set_input_sizes(n + 3);
+            bp.set_input_sizes(n + 2);
 
             compute_result.reset(
                 new nil::crypto3::zk::components::inner_product<FieldType>(
@@ -114,20 +108,20 @@ namespace contest {
         }
     };
 
-    template<typename FieldType>
-    r1cs_primary_input<FieldType> get_public_input(
-        vector<ushort> _risks,
-        uint _minRisk,
-        uint _maxRisk
-    ) {
-        r1cs_primary_input<FieldType> input;
-        for (size_t i = 0; i < _risks.size(); ++i) {
-            input.push_back(_risks[i]);
-        }
-        input.push_back(_minRisk);
-        input.push_back(_maxRisk);
-        // out variable
-        input.push_back(2);
-        return input;
-    }
+    // template<typename FieldType>
+    // r1cs_primary_input<FieldType> get_public_input(
+    //     vector<ushort> _risks,
+    //     uint _minRisk,
+    //     uint _maxRisk
+    // ) {
+    //     r1cs_primary_input<FieldType> input;
+    //     for (size_t i = 0; i < _risks.size(); ++i) {
+    //         input.push_back(_risks[i]);
+    //     }
+    //     input.push_back(_minRisk);
+    //     input.push_back(_maxRisk);
+    //     // out variable
+    //     // input.push_back(2);
+    //     return input;
+    // }
 }

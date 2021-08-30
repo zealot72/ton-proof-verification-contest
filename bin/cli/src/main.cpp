@@ -1,69 +1,24 @@
-//---------------------------------------------------------------------------//
-// Copyright (c) 2018-2021 Mikhail Komarov <nemo@nil.foundation>
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//    http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//---------------------------------------------------------------------------//
-
 #include <iostream>
 
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/program_options.hpp>
 
-#include "detail/r1cs_examples.hpp"
-#include "detail/sha256_component.hpp"
-
-#include <nil/crypto3/algebra/curves/bls12.hpp>
-#include <nil/crypto3/algebra/fields/bls12/base_field.hpp>
-#include <nil/crypto3/algebra/fields/bls12/scalar_field.hpp>
-#include <nil/crypto3/algebra/fields/arithmetic_params/bls12.hpp>
-#include <nil/crypto3/algebra/curves/params/multiexp/bls12.hpp>
-#include <nil/crypto3/algebra/curves/params/wnaf/bls12.hpp>
-#include <nil/crypto3/algebra/pairing/bls12.hpp>
-#include <nil/crypto3/algebra/pairing/mnt4.hpp>
-#include <nil/crypto3/algebra/pairing/mnt6.hpp>
-
-#include <nil/crypto3/zk/components/blueprint.hpp>
-#include <nil/crypto3/zk/components/blueprint_variable.hpp>
-#include <nil/crypto3/zk/components/disjunction.hpp>
-
-#include <nil/crypto3/zk/snark/schemes/ppzksnark/r1cs_gg_ppzksnark.hpp>
-#include <nil/crypto3/zk/snark/schemes/ppzksnark/r1cs_gg_ppzksnark/marshalling.hpp>
+#include "./types.h"
 
 #include <nil/crypto3/zk/snark/algorithms/generate.hpp>
 #include <nil/crypto3/zk/snark/algorithms/verify.hpp>
 #include <nil/crypto3/zk/snark/algorithms/prove.hpp>
 
-#include <nil/marshalling/status_type.hpp>
-#include <nil/crypto3/marshalling/types/zk/r1cs_gg_ppzksnark/primary_input.hpp>
-#include <nil/crypto3/marshalling/types/zk/r1cs_gg_ppzksnark/proof.hpp>
-#include <nil/crypto3/marshalling/types/zk/r1cs_gg_ppzksnark/verification_key.hpp>
-
-#include "detail/risk_component.hpp"
-#include "csv.cpp"
+#include "./detail/risk_component.hpp"
+#include "./csv.cpp"
+#include "./utils.hpp"
 
 using namespace std;
-using namespace nil::marshalling;
 using namespace nil::crypto3;
+using namespace nil::crypto3::marshalling;
 using namespace nil::crypto3::zk;
 
-typedef algebra::curves::bls12<381> curve_type;
-typedef typename curve_type::scalar_field_type scalar_field_type;
-typedef scalar_field_type::value_type value_type;
-typedef zk::snark::r1cs_gg_ppzksnark<curve_type> scheme_type;
-
-// number of assets in S&P100 index
-const size_t ASSETS_LENGTH = 101;
 
 struct assets {
     vector<string> symbols;
@@ -71,7 +26,7 @@ struct assets {
     vector<ushort> weights;
 };
 
-assets load_assets(std::string fname) {
+assets load_assets(std::string fname, uint assets_length) {
     // 100%
     const size_t DENOMINATOR = 10000;
     const size_t SYMBOLS_COLUMN = 0;
@@ -101,7 +56,7 @@ assets load_assets(std::string fname) {
         // cout << endl;
     }
 
-    assert(data.risks.size() == ASSETS_LENGTH);
+    assert(data.risks.size() == assets_length);
     assert(data.risks.size() == data.weights.size());
     // sum of all weights should be equal to denominator (100%)
     assert(weights_sum == DENOMINATOR);
@@ -109,80 +64,55 @@ assets load_assets(std::string fname) {
     return data;
 }
 
+// bool generate_keys(
+//     boost::filesystem::path pk_path,
+//     boost::filesystem::path vk_path,
+//     uint assets_length
+// ) {
+//     blueprint<scalar_field_type> bp;
+//     contest::risk_reporting_component<scalar_field_type> report(bp, assets_length);
+//     cout << "Generating r1cs constraints..." << endl;
+//     report.generate_r1cs_constraints();
 
-vector<uint8_t> load_blob(boost::filesystem::path path) {
-    boost::filesystem::ifstream stream(path, ios::in | ios::binary);
-    auto eos = istreambuf_iterator<char>();
-    auto buffer = vector<uint8_t>(istreambuf_iterator<char>(stream), eos);
-    return buffer;
-}
+//     const r1cs_constraint_system<scalar_field_type> constraint_system = bp.get_constraint_system();
 
-void save_blob(
-    boost::filesystem::path path,
-    vector<uint8_t> blob
-) {
-    boost::filesystem::ofstream out(path);
-    for (const auto &v : blob) {
-        out << v;
-    }
-    out.close();
-}
+//     cout << "Generating key pair..." << endl;
+//     scheme_type::keypair_type keypair = generate<scheme_type>(constraint_system);
 
-bool generate_keys(
-    boost::filesystem::path pk_path,
-    boost::filesystem::path vk_path
-) {
-    blueprint<scalar_field_type> bp;
-    contest::risk_reporting_component<scalar_field_type> report(bp, ASSETS_LENGTH);
-    cout << "Generating r1cs constraints..." << endl;
-    report.generate_r1cs_constraints();
+//     vector<uint8_t> proving_key_byteblob =
+//         nil::marshalling::verifier_input_serializer_tvm<scheme_type>::process(keypair.first);
+//     vector<uint8_t> verification_key_byteblob =
+//         nil::marshalling::verifier_input_serializer_tvm<scheme_type>::process(keypair.second);
 
-    const r1cs_constraint_system<scalar_field_type> constraint_system = bp.get_constraint_system();
+//     cout << "Serializing proving key to " << pk_path << endl;
+//     save_blob(pk_path, proving_key_byteblob);
 
-    cout << "Generating key pair..." << endl;
-    scheme_type::keypair_type keypair = generate<scheme_type>(constraint_system);
+//     cout << "Serializing verification key to " << vk_path << endl;
+//     save_blob(vk_path, verification_key_byteblob);
 
-    vector<uint8_t> proving_key_byteblob =
-        verifier_input_serializer_tvm<scheme_type>::process(keypair.first);
-    vector<uint8_t> verification_key_byteblob =
-        verifier_input_serializer_tvm<scheme_type>::process(keypair.second);
-
-    cout << "Serializing proving key to " << pk_path << endl;
-    save_blob(pk_path, proving_key_byteblob);
-
-    cout << "Serializing verification key to " << vk_path << endl;
-    save_blob(vk_path, verification_key_byteblob);
-
-    return true;
-}
+//     return true;
+// }
 
 bool generate_proof(
     boost::filesystem::path proof_path,
-    boost::filesystem::path pk_path,
+    boost::filesystem::path vk_path,
+    boost::filesystem::path pi_path,
+    uint assets_length,
     vector<ushort> weights,
     vector<ushort> risks,
     uint min_risk,
     uint max_risk
 ) {
-    cout << "Deserializing proving key from file " << pk_path << endl;
-    vector<uint8_t> proving_key_byteblob = load_blob(pk_path);
-    status_type provingProcessingStatus = status_type::success;
-    typename scheme_type::proving_key_type pk = verifier_input_deserializer_tvm<scheme_type>::proving_key_process(
-        proving_key_byteblob.cbegin(),
-        proving_key_byteblob.cend(),
-        provingProcessingStatus);
-
     blueprint<scalar_field_type> bp;
-    contest::risk_reporting_component<scalar_field_type> report(bp, ASSETS_LENGTH);
+    contest::risk_reporting_component<scalar_field_type> report(bp, assets_length);
     cout << "Generating r1cs constraints..." << endl;
     report.generate_r1cs_constraints();
     cout << "Generating r1cs witness..." << endl;
     report.generate_r1cs_witness(weights, risks, min_risk, max_risk);
 
-    cout << "aggRisk = " << bp.val(report.aggRisk).data << endl;
     cout << "minRisk = " << bp.val(report.minRisk).data << endl;
     cout << "maxRisk = " << bp.val(report.maxRisk).data << endl;
-    cout << "out = " << bp.val(report.out).data << endl;
+    cout << "aggRisk = " << bp.val(report.aggRisk).data << endl;
     cout << "minRiskLess = " << bp.val(report.minRiskLess).data << endl;
     cout << "minRiskLessOrEq = " << bp.val(report.minRiskLessOrEq).data << endl;
     cout << "maxRiskLess = " << bp.val(report.maxRiskLess).data << endl;
@@ -209,14 +139,23 @@ bool generate_proof(
         return false;
     }
 
+    const r1cs_constraint_system<scalar_field_type> constraint_system = bp.get_constraint_system();
+
+    cout << "Generating key pair..." << endl;
+    scheme_type::keypair_type keypair = generate<scheme_type>(constraint_system);
+
     cout << "Generating proof..." << endl;
-    const scheme_type::proof_type proof = prove<scheme_type>(pk, bp.primary_input(), bp.auxiliary_input());
+    const typename scheme_type::proof_type proof = prove<scheme_type>(keypair.first, bp.primary_input(), bp.auxiliary_input());
 
-    vector<uint8_t> proof_byteblob =
-        verifier_input_serializer_tvm<scheme_type>::process(proof);
 
-    cout << "Serializing proof to file" << proof_path << endl;
-    save_blob(proof_path, proof_byteblob);
+    cout << "Saving proof to " << proof_path << endl;
+    save_proof(proof, proof_path);
+
+    cout << "Saving verification_key to " << vk_path << endl;
+    save_verification_key(keypair.second, vk_path);
+
+    cout << "Saving primary input to " << pi_path << endl;
+    save_primary_input(bp.primary_input(), pi_path);
 
     return true;
 }
@@ -224,28 +163,16 @@ bool generate_proof(
 bool verify_proof(
     boost::filesystem::path proof_path,
     boost::filesystem::path vk_path,
-    vector<ushort> risks,
-    uint min_risk,
-    uint max_risk
+    boost::filesystem::path pi_path
 ) {
     cout << "Deserializing proof from file " << proof_path << endl;
-    vector<uint8_t> proof_byteblob = load_blob(proof_path);
-    status_type proofProcessingStatus = status_type::success;
-    typename scheme_type::proof_type proof = verifier_input_deserializer_tvm<scheme_type>::proof_process(
-        proof_byteblob.cbegin(),
-        proof_byteblob.cend(),
-        proofProcessingStatus);
+    typename scheme_type::proof_type proof = load_proof(proof_path);
 
     cout << "Deserializing verification key from file " << vk_path << endl;
-    vector<uint8_t> verification_key_byteblob = load_blob(vk_path);
-    status_type verificationProcessingStatus = status_type::success;
-    typename scheme_type::verification_key_type vk = verifier_input_deserializer_tvm<scheme_type>::verification_key_process(
-        verification_key_byteblob.cbegin(),
-        verification_key_byteblob.cend(),
-        verificationProcessingStatus );
+    typename scheme_type::verification_key_type vk = load_verification_key(vk_path);
 
-    r1cs_primary_input<scalar_field_type> input = contest::get_public_input<scalar_field_type>(
-        risks, min_risk, max_risk);
+    cout << "Deserializing primary input from file " << pi_path << endl;
+    r1cs_primary_input<scalar_field_type> input = load_primary_input(pi_path);
 
     // log public input
     // for (size_t i = 0; i < input.size(); ++i) {
@@ -253,7 +180,7 @@ bool verify_proof(
     // }
 
     using basic_proof_system = r1cs_gg_ppzksnark<curve_type>;
-    cout << "Verifying proof..." << endl;
+    cout << "Verifying proof in blueprint..." << endl;
     const bool verified = verify<basic_proof_system>(vk, input, proof);
     cout << "Proof verification status: " << verified << endl;
 
@@ -261,24 +188,24 @@ bool verify_proof(
 }
 
 int main(int argc, char *argv[]) {
-    uint min_risk, max_risk;
+    // by default assets_length = 101 - number of assets in S&P100 index
+    uint assets_length, min_risk, max_risk;
     boost::filesystem::path assets_path;
-    boost::filesystem::path pout, pkout, vkout, piout, viout;
+    boost::filesystem::path pout, pkout, vkout, piout;
     boost::program_options::options_description options(
         "R1CS Generic Group PreProcessing Zero-Knowledge Succinct Non-interactive ARgument of Knowledge "
         "(https://eprint.iacr.org/2016/260.pdf) CLI Proof Generator");
     // clang-format off
     options.add_options()("help,h", "Display help message")
     ("version,v", "Display version")
-    ("generate", "Generate private and verification keys")
-    ("proof", "Generate proofs")
+    ("generate", "Generate proof and private/verification keys")
+    // ("proof", "Generate proofs")
     ("verify", "Verify proofs")
     ("proof-output,po", boost::program_options::value<boost::filesystem::path>(&pout)->default_value("proof"))
-    ("primary-input-output,pio", boost::program_options::value<boost::filesystem::path>(&piout)->default_value
-("pinput"))
-    ("proving-key-output,pko", boost::program_options::value<boost::filesystem::path>(&pkout)->default_value("pkey"))
-    ("verifying-key-output,vko", boost::program_options::value<boost::filesystem::path>(&vkout)->default_value("vkey"))
-    ("verifier-input-output,vio", boost::program_options::value<boost::filesystem::path>(&viout)->default_value("vio"))
+    ("primary-input-output,pio", boost::program_options::value<boost::filesystem::path>(&piout)->default_value("primary_input"))
+    ("proving-key-output,pko", boost::program_options::value<boost::filesystem::path>(&pkout)->default_value("proving_key"))
+    ("verifying-key-output,vko", boost::program_options::value<boost::filesystem::path>(&vkout)->default_value("verification_key"))
+    ("assets-length,l", boost::program_options::value<uint>(&assets_length)->default_value(101))
     ("min-risk,x", boost::program_options::value<uint>(&min_risk)->default_value(0))
     ("max-risk,y", boost::program_options::value<uint>(&max_risk)->default_value(2000000))
     ("assets,a", boost::program_options::value<boost::filesystem::path>(&assets_path)->default_value("assets.csv"))
@@ -293,15 +220,18 @@ int main(int argc, char *argv[]) {
         cout << options << endl;
         return 0;
     } else if (vm.count("generate")) {
-        generate_keys(pkout, vkout);
-    } else if (vm.count("proof") || vm.count("verify")) {
-        assets data = load_assets(assets_path.string());
-        if (vm.count("proof")) {
-            generate_proof(pout, pkout, data.weights, data.risks, min_risk, max_risk);
-        } else if (vm.count("verify")) {
-            verify_proof(pout, vkout, data.risks, min_risk, max_risk);
-        }
+        assets data = load_assets(assets_path.string(), assets_length);
+        generate_proof(
+            pout,
+            vkout,
+            piout,
+            assets_length,
+            data.weights,
+            data.risks,
+            min_risk,
+            max_risk);
+    } else if (vm.count("verify")) {
+        verify_proof(pout, vkout, piout);
     }
-
     return 0;
 }
