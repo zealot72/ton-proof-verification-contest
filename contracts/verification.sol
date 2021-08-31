@@ -7,14 +7,10 @@ contract Verify {
     function verify(
         bytes proof,
         bytes primary_input
-        // uint16[] risks,
-        // uint32 min_risk,
-        // uint32 max_risk
     ) public view returns (bool) {
         require(m_vkey.length > 0, 200, "Empty verification key");
         tvm.accept();
 
-        // bytes primary_input = serialize_primary_input(risks, min_risk, max_risk);
         string blob_str = proof;
         blob_str.append(primary_input);
         blob_str.append(m_vkey);
