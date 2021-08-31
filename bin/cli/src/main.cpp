@@ -28,7 +28,7 @@ struct assets {
 
 assets load_assets(std::string fname, uint assets_length) {
     // 100%
-    const size_t DENOMINATOR = 10000;
+    // const size_t DENOMINATOR = 10000;
     const size_t SYMBOLS_COLUMN = 0;
     const size_t RISK_COLUMN = 1;
     const size_t WEIGHT_COLUMN = 2;
@@ -42,7 +42,7 @@ assets load_assets(std::string fname, uint assets_length) {
         const ushort risk = boost::lexical_cast<ushort>(table[row][RISK_COLUMN]);
         const ushort weight = boost::lexical_cast<ushort>(table[row][WEIGHT_COLUMN]);
 
-        assert(risk < DENOMINATOR);
+        // assert(risk < DENOMINATOR);
 
         data.risks.push_back(risk);
         data.weights.push_back(weight);
@@ -59,7 +59,7 @@ assets load_assets(std::string fname, uint assets_length) {
     assert(data.risks.size() == assets_length);
     assert(data.risks.size() == data.weights.size());
     // sum of all weights should be equal to denominator (100%)
-    assert(weights_sum == DENOMINATOR);
+    // assert(weights_sum == DENOMINATOR);
 
     return data;
 }
